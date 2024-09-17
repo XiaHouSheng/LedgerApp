@@ -51,7 +51,7 @@ public class loginActivity extends AppCompatActivity {
         });
         //判断是否未登录
         isLogin();
-        Toast.makeText(loginActivity.this,"测试启动",Toast.LENGTH_LONG).show();
+        //Toast.makeText(loginActivity.this,"测试启动",Toast.LENGTH_LONG).show();
         //初始化
         ledgerLoginPsw=findViewById(R.id.ledger_login_psw);
         ledgerLoginUsn=findViewById(R.id.ledger_login_usn);
@@ -63,13 +63,11 @@ public class loginActivity extends AppCompatActivity {
                 String username = ledgerLoginUsn.getText().toString();
                 String password = ledgerLoginPsw.getText().toString();
                 //判断username是否合法
-                System.out.println(username);
-                System.out.println(password);
                 if(username.isEmpty()||password.isEmpty()){
-                    Toast.makeText(loginActivity.this,"Button|不能为空",Toast.LENGTH_SHORT).show();
+                    Toast.makeText(loginActivity.this,"不能为空",Toast.LENGTH_SHORT).show();
                 }else{
                     login(username,md5enc(password));
-                    Toast.makeText(loginActivity.this,"Button|合法",Toast.LENGTH_SHORT).show();
+                    //Toast.makeText(loginActivity.this,"Button|合法",Toast.LENGTH_SHORT).show();
                 }
             }
         });
@@ -96,7 +94,7 @@ public class loginActivity extends AppCompatActivity {
         Gson gson = new Gson();
         LoginResponse data = gson.fromJson(text, LoginResponse.class);
         if (data.code==0){
-            Toast.makeText(loginActivity.this,"Success|检查账号和密码",Toast.LENGTH_SHORT).show();
+            Toast.makeText(loginActivity.this,"检查账号和密码",Toast.LENGTH_SHORT).show();
         }else{
             try {
                 saveToken(data.token);
@@ -105,6 +103,7 @@ public class loginActivity extends AppCompatActivity {
             }
             Intent intent = new Intent(loginActivity.this, MainActivity.class);
             startActivity(intent);
+            finish();
         }
 
     }
@@ -150,6 +149,7 @@ public class loginActivity extends AppCompatActivity {
         if (file.exists()){
             Intent intent = new Intent(loginActivity.this,MainActivity.class);
             startActivity(intent);
+            finish();
         }
     }
 

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <EditText
+        android:id="@+id/ledger_num_pay"
+        android:layout_width="270dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:ems="10"
+        android:hint="花了多少米？"
+        android:inputType="number"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/ledger_select_group" />
+
+    <RadioGroup
+        android:id="@+id/ledger_select_group"
+        android:layout_width="270dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="44dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <RadioButton
+            android:checked="true"
+            android:id="@+id/ledger_select_meal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="吃饭" />
+
+        <RadioButton
+            android:id="@+id/ledger_select_game"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="娱乐" />
+
+        <RadioButton
+            android:id="@+id/ledger_select_study"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="学习" />
+    </RadioGroup>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
