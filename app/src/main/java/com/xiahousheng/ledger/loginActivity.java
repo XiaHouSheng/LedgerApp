@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Message;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -38,6 +39,7 @@ public class loginActivity extends AppCompatActivity {
     private EditText ledgerLoginUsn,ledgerLoginPsw;
     private Button ledgerLoginBtn;
     private static String url="http://82.156.201.153/ledgerdb/login";
+    private String responseS;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,33 +68,47 @@ public class loginActivity extends AppCompatActivity {
                 if(username.isEmpty()||password.isEmpty()){
                     Toast.makeText(loginActivity.this,"不能为空",Toast.LENGTH_SHORT).show();
                 }else{
-                    login(username,md5enc(password));
+                    loginInThread(username,md5enc(password));
                     //Toast.makeText(loginActivity.this,"Button|合法",Toast.LENGTH_SHORT).show();
                 }
             }
         });
     }
 
-    //用于登录
-    private void login(String username,String password){
-        OkHttpClient client = new OkHttpClient();
-        MediaType JSON = MediaType.get("application/json");
-        String json=String.format("{\"username\":\"%s\",\"password\":\"%s\"}",username,password);
-        RequestBody body = RequestBody.create(json,JSON);
-        Request request = new Request.Builder()
-                .url(url)
-                .post(body)
-                .build();
-        String text = null;
-        try (Response response = client.newCall(request).execute()){
-            assert response.body() != null;
-            text=response.body().string();
-            System.out.println(text);
-        }catch (IOException e){
-            System.out.println(e);
+    private void loginInThread(String username,String password){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                OkHttpClient client = new OkHttpClient();
+                MediaType JSON = MediaType.get("application/json");
+                String json=String.format("{\"username\":\"%s\",\"password\":\"%s\"}",username,password);
+                RequestBody body = RequestBody.create(json,JSON);
+                Request request = new Request.Builder()
+                        .url(url)
+                        .post(body)
+                        .build();
+                try (Response response = client.newCall(request).execute()){
+                    assert response.body() != null;
+                    responseS=response.body().string();
+                }catch (IOException e){
+                    System.out.println(e);
+                }
+                handler.sendEmptyMessage(0);
+            }
+        }).start();
+    }
+
+    private final Handler handler = new Handler(Looper.getMainLooper()){
+        @Override
+        public void handleMessage(@NonNull Message msg) {
+            login();
         }
+    };
+
+    //用于登录
+    private void login(){
         Gson gson = new Gson();
-        LoginResponse data = gson.fromJson(text, LoginResponse.class);
+        LoginResponse data = gson.fromJson(responseS, LoginResponse.class);
         if (data.code==0){
             Toast.makeText(loginActivity.this,"检查账号和密码",Toast.LENGTH_SHORT).show();
         }else{

@@ -1,8 +1,12 @@
 package com.xiahousheng.ledger;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -45,12 +49,17 @@ public class MainActivity extends AppCompatActivity {
     private RecyclerView ledgerList;
     private TextView ledgerDay,ledgerWeek,ledgerMonth,ledgerTimeMonth;
     private FloatingActionButton addLedger;
-    LedgerListAdapter adapter;
+    HorizonScrollViewAdapter adapter;
+    public Handler handler;
     private static String UrlGetItem = "http://82.156.201.153/ledgerdb/getitems";
     private static String UrlUpload = "http://82.156.201.153/ledgerdb/upload";
+    private static String UrlDelete = "http://82.156.201.153/ledgerdb/deleteitem";
+    private static String UrlUpdate = "http://82.156.201.153/ledgerdb/update";
     private static String dateToday;
     private static OkHttpClient client = new OkHttpClient();
     private LedgerData dataDay,dataWeek,dataMonth;
+    private LedgerPostRes uploadRes,deleteRes,updateRes;
+
     @Override
     protected void onCreate(Bundle savedInstanceState){
         super.onCreate(savedInstanceState);
@@ -61,41 +70,141 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+        initHandler();
         ledgerList = findViewById(R.id.ledger_list);
         ledgerDay = findViewById(R.id.ledger_day_pay);
         ledgerWeek = findViewById(R.id.ledger_week_pay);
         ledgerMonth = findViewById(R.id.ledger_month_pay);
         ledgerTimeMonth = findViewById(R.id.ledger_time_month);
         addLedger = findViewById(R.id.ledger_button_add);
-        try {
-            initPay();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        requestInThread(0);
+    }
+
+    private void requestInThread(int what){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                LocalDate today = LocalDate.now();
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                try {
+                    dateToday = formatter.format(today);
+                    dataMonth = getPayDataGson(2, dateToday);
+                    //System.out.println("Month-ok");
+                    dataWeek = getPayDataGson(1, dateToday);
+                    //System.out.println("Week-ok");
+                    dataDay = getPayDataGson(0, dateToday);
+                    //System.out.println("Day-ok");
+                }catch (IOException e){
+                    System.out.println(e);
+                }
+                handler.sendMessage(handler.obtainMessage(what));
+            }
+        }).start();
+    }
+
+    private void upLoadInThread(int num,String type){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    uploadRes = uploadLedger(num,type);
+                    handler.sendMessage(handler.obtainMessage(2));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }).start();
+    }
+
+    private void deleteInThread(int id){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    deleteRes = delete(id);
+                    handler.sendMessage(handler.obtainMessage(3));
+                }catch (IOException e){
+                    throw new RuntimeException(e);
+                }
+            }
+        }).start();
+    }
+
+    private void updateInThread(int id,int num,String type){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    updateRes = update(id,num,type);
+                    handler.sendMessage(handler.obtainMessage(5));
+                }catch (IOException e){
+                    throw new RuntimeException(e);
+                }
+            }
+        }).start();
+    }
+
+    private void initHandler(){
+        handler = new Handler(Looper.getMainLooper()){
+            @SuppressLint("NotifyDataSetChanged")
+            @Override
+            public void handleMessage(@NonNull Message msg) {
+                //全初始化
+                if(msg.what==0){
+                    try {
+                        initPay();
+                        //System.out.println("what2|执行完毕");
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                //全部刷新
+                if(msg.what==1){
+                    ledgerDay.setText(String.valueOf(dataDay.total));
+                    ledgerWeek.setText(String.valueOf(dataWeek.total));
+                    ledgerMonth.setText(String.valueOf(dataMonth.total));
+                    adapter.clearData();
+                    adapter.bindData(dataMonth.items);
+                    adapter.notifyDataSetChanged();
+                    ledgerList.smoothScrollToPosition(dataMonth.items.size() -1);
+                }
+                //单独刷新数据
+                if(msg.what==4){
+                    if (deleteRes.code == 1) {
+                        ledgerDay.setText(String.valueOf(dataDay.total));
+                        ledgerWeek.setText(String.valueOf(dataWeek.total));
+                        ledgerMonth.setText(String.valueOf(dataMonth.total));
+                    }
+                }
+                //上传
+                if(msg.what==2){
+                    if (uploadRes.code == 1) {
+                        requestInThread(1);
+                    }
+                }
+                //删除
+                if(msg.what==3){
+                    //重新请求数据
+                    requestInThread(4);
+                }
+                //更新
+                if(msg.what==5){
+                    requestInThread(1);
+                }
+            }
+        };
     }
 
     private void initPay() throws IOException {
-        LocalDate today = LocalDate.now();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        dateToday = formatter.format(today);
-        dataMonth = getPayDataGson(2,dateToday);
-        //System.out.println("Month-ok");
-        dataWeek = getPayDataGson(1,dateToday);
-        //System.out.println("Week-ok");
-        dataDay = getPayDataGson(0,dateToday);
-        //System.out.println("Day-ok");
         AlertDialog dialogAdd = initDialog();
-
-
-        adapter = new LedgerListAdapter();
         LinearLayoutManager manager = new LinearLayoutManager(this);
-        adapter.init(dataMonth.items);
+        initAdapter(dataMonth.items);
         ledgerList.setLayoutManager(manager);
         ledgerList.setAdapter(adapter);
         ledgerMonth.setText(String.valueOf(dataMonth.total));
         ledgerWeek.setText(String.valueOf(dataWeek.total));
         ledgerDay.setText(String.valueOf(dataDay.total));
-        ledgerTimeMonth.setText(String.format("%s月支出",today.getMonthValue()));
+        ledgerTimeMonth.setText(String.format("%s月支出",LocalDate.now().getMonthValue()));
         addLedger.setOnClickListener(view -> {
             dialogAdd.show();
         });
@@ -120,15 +229,7 @@ public class MainActivity extends AppCompatActivity {
                         Toast.makeText(this,"不能花0块钱！",Toast.LENGTH_SHORT).show();
                     }
                     else {
-                        try {
-                            LedgerUploadRes response = uploadLedger(Integer.parseInt(payNum), button.getText().toString());
-                            if (response.code == 1) {
-                                refresh();
-                            }
-                            Toast.makeText(this,response.msg,Toast.LENGTH_SHORT).show();
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
+                        upLoadInThread(Integer.parseInt(payNum), button.getText().toString());
                     }
                 })
                 .setNegativeButton("取消", ((dialogInterface, i) -> {
@@ -137,23 +238,14 @@ public class MainActivity extends AppCompatActivity {
         return  dialogAdd.create();
     }
 
-    private LedgerUploadRes uploadLedger(int num,String type) throws IOException {
+    private LedgerPostRes uploadLedger(int num,String type) throws IOException {
         String json = String.format("{\"token\":\"%s\",\"num\":%s,\"type\":\"%s\"}",getUserToken(),num,type);
-        return postWithJson(json,UrlUpload,LedgerUploadRes.class);
+        return postWithJson(json,UrlUpload,LedgerPostRes.class);
     }
 
     private LedgerData getPayDataGson(int method,String date) throws IOException{
         String json = String.format("{\"token\":\"%s\",\"method\":%s,\"specificDate\":\"%s\"}",getUserToken(),method,date);
         return postWithJson(json,UrlGetItem,LedgerData.class);
-    }
-
-    @SuppressLint("NotifyDataSetChanged")
-    private void refresh() throws IOException{
-        dataDay = getPayDataGson(0,dateToday);ledgerDay.setText(String.valueOf(dataDay.total));
-        dataWeek = getPayDataGson(1,dateToday);ledgerWeek.setText(String.valueOf(dataWeek.total));
-        dataMonth = getPayDataGson(2,dateToday);ledgerMonth.setText(String.valueOf(dataMonth.total));
-        adapter.init(dataMonth.items);
-        adapter.notifyDataSetChanged();//庞大数据下性能会出现问题|后面再想办法
     }
 
     private <T> T postWithJson(String json,String url,Class<T> clazz) throws IOException{
@@ -186,7 +278,36 @@ public class MainActivity extends AppCompatActivity {
         return content.toString();
     }
 
+    private void initAdapter(List<LedgerItem> ledgerItems){
+        adapter = new HorizonScrollViewAdapter();
+        adapter.setOnItemDeleteListener(new HorizonScrollViewAdapter.OnItemDeleteListiner() {
+            @Override
+            public void onDelete(int id) {
+                deleteInThread(id);
+            }
+        });
+        adapter.setOnItemUpdateListener(new HorizonScrollViewAdapter.OnItemUpdateListiner() {
+            @Override
+            public void onUpdate(int id, int num,String type) { updateInThread(id,num,type);}
+        });
+        adapter.setLayout(R.layout.ledger_list_item_view);
+        adapter.setContext(this);
+        adapter.bind(ledgerList);
+        adapter.bindData(ledgerItems);
+    }
+
+    private LedgerPostRes delete(int id) throws IOException{
+        String json = String.format("{\"token\":\"%s\",\"id\":%s}",getUserToken(),id);
+        return postWithJson(json,UrlDelete,LedgerPostRes.class);
+    }
+
+    private LedgerPostRes update(int id,int num,String type) throws IOException{
+        String json = String.format("{\"token\":\"%s\",\"num\":%s,\"type\":\"%s\",\"id\":%s}",getUserToken(),num,type,id);
+        return postWithJson(json,UrlUpdate,LedgerPostRes.class);
+    }
+
     //适配器
+    /*
     class LedgerListAdapter extends RecyclerView.Adapter<LedgerViewHolder>{
         private List<LedgerItem> ledgerItems;
         public void init(List<LedgerItem> items){
@@ -229,21 +350,24 @@ public class MainActivity extends AppCompatActivity {
             return ledgerItems.size();
         }
     }
+    */
+
 
     //item的视图
-    static class LedgerViewHolder extends RecyclerView.ViewHolder{
+    /*
+    static class LedgerViewHolder extends  HorizonScrollViewHolder{
         ImageView ledgerImageType;
         TextView ledgerTime;
         TextView ledgerPayNum;
 
         public LedgerViewHolder(View itemView){
             super(itemView);
-            itemView.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, RecyclerView.LayoutParams.WRAP_CONTENT));
             ledgerImageType = itemView.findViewById(R.id.ledger_item_image_type);
             ledgerTime = itemView.findViewById(R.id.ledger_item_paytime);
             ledgerPayNum = itemView.findViewById(R.id.ledger_item_num);
         }
     }
+    */
 
     //返回数据对象
     static class LedgerData{
@@ -256,11 +380,13 @@ public class MainActivity extends AppCompatActivity {
         int num;
         String type_;
         String time_;
+        int id;
     }
 
-    static class LedgerUploadRes{
+    static class LedgerPostRes{
         int code;
         String msg;
     }
+
 
 }
